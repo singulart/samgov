@@ -1,0 +1,14 @@
+{
+    "properties": [
+        {
+            "name": "aws.region",
+            "type": "java.lang.String",
+            "description": "AWS region"
+        },
+        {
+            "name": "aws.dynamodb.endpoint",
+            "type": "java.lang.String",
+            "description": "AWS CLI endpoint"
+        }
+    ]
+}
