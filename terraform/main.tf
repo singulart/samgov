@@ -43,8 +43,8 @@ resource "aws_lambda_function" "samgov_notifier" {
   handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker"
   role          = aws_iam_role.lambda_execution_role.arn
   architectures = [ "arm64" ]
-  timeout       = 10
-  memory_size   = 256
+  timeout       = 120
+  memory_size   = 512
   publish       = true
 
   tracing_config {
