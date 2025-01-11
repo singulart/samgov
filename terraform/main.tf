@@ -17,6 +17,29 @@ resource "aws_s3_bucket_lifecycle_configuration" "argorand_lambdas_repository_li
       noncurrent_days = 30
     }
   }
+
+  rule {
+    id     = "abort-incomplete-multipart-upload"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 2
+    }
+  }
+
+  rule {
+    id     = "transition-and-expiration-rule"
+    status = "Enabled"
+
+    transition {
+      days          = 30 # Transition objects to another storage class after 30 days
+      storage_class = "STANDARD_IA" # Change to desired storage class (e.g., STANDARD_IA, GLACIER, etc.)
+    }
+
+    expiration {
+      days = 365 # Expire (delete) objects after 365 days
+    }
+  }  
 }
 
 resource "aws_s3_bucket_versioning" "argorand_lambdas_repository_versioning" {
