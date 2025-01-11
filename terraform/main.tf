@@ -1,10 +1,6 @@
-provider "aws" {
-  region = "us-east-1"
-}
-
 locals {
   schedule_expression = "rate(5 minutes)"
-  function_version    = "0.0.1-SNAPSHOT"
+  function_version    = "0.1.0-SNAPSHOT"
 }
 
 resource "aws_s3_bucket" "argorand_lambdas_repository" {
@@ -41,14 +37,15 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "argorand_lambdas_
   }
 }
 
-resource "aws_lambda_function" "SamGovFunction" {
-  function_name = "SamGovFunction"
+resource "aws_lambda_function" "samgov_notifier" {
+  function_name = "samgov_notifier"
   runtime       = "java21"
   handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker"
   role          = aws_iam_role.lambda_execution_role.arn
   architectures = [ "arm64" ]
   timeout       = 10
   memory_size   = 256
+  publish       = true
 
   tracing_config {
     mode = "Active"
@@ -85,12 +82,12 @@ resource "aws_dynamodb_table" "samgov" {
 }
 
 resource "aws_cloudwatch_log_group" "samgov_function_logs" {
-  name              = "/aws/lambda/SamGovFunction"
+  name              = "/aws/lambda/samgov_notifier"
   retention_in_days = 14
 }
 
 resource "aws_iam_role" "lambda_execution_role" {
-  name = "lambda_execution_role"
+  name = "samgov_notifier_execution_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -107,7 +104,7 @@ resource "aws_iam_role" "lambda_execution_role" {
 }
 
 resource "aws_iam_policy" "lambda_permissions" {
-  name        = "lambda_permissions"
+  name        = "sam_gov_notifier_permissions"
   description = "Permissions for Lambda to access DynamoDB, SES, S3, and CloudWatch Logs"
 
   policy = jsonencode({
@@ -149,7 +146,7 @@ resource "aws_iam_policy" "lambda_permissions" {
           "logs:PutLogEvents"
         ],
         Effect   = "Allow",
-        Resource = "arn:aws:logs:us-east-1:*:log-group:/aws/lambda/SamGovFunction:*"
+        Resource = "arn:aws:logs:us-east-1:*:log-group:/aws/lambda/samgov_notifier:*"
       }
     ]
   })
@@ -167,14 +164,14 @@ resource "aws_cloudwatch_event_rule" "samgov_schedule" {
 
 resource "aws_cloudwatch_event_target" "samgov_target" {
   rule      = aws_cloudwatch_event_rule.samgov_schedule.name
-  target_id = "SamGovFunction"
-  arn       = aws_lambda_function.SamGovFunction.arn
+  target_id = "samgov_notifier"
+  arn       = aws_lambda_function.samgov_notifier.arn
 }
 
 resource "aws_lambda_permission" "allow_cloudwatch_to_invoke" {
   statement_id  = "AllowCloudWatchEventsToInvokeLambda"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.SamGovFunction.function_name
+  function_name = aws_lambda_function.samgov_notifier.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.samgov_schedule.arn
 }
