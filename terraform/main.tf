@@ -92,8 +92,10 @@ resource "aws_lambda_function" "samgov_notifier" {
 
 resource "aws_dynamodb_table" "samgov" {
   name                        = "samgov"
-  billing_mode                = "PAY_PER_REQUEST"
+  billing_mode                = "PROVISIONED"
   deletion_protection_enabled = "true"
+  read_capacity               = 1
+  write_capacity              = 1
 
   attribute {
     name = "lastProcessedAt"
