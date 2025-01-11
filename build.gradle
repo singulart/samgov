@@ -87,6 +87,15 @@ dependencyManagement {
 	}
 }
 
+configurations {
+    compileClasspath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+    runtimeClasspath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 }

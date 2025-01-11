@@ -17,6 +17,29 @@ resource "aws_s3_bucket_lifecycle_configuration" "argorand_lambdas_repository_li
       noncurrent_days = 30
     }
   }
+
+  rule {
+    id     = "abort-incomplete-multipart-upload"
+    status = "Enabled"
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 2
+    }
+  }
+
+  rule {
+    id     = "transition-and-expiration-rule"
+    status = "Enabled"
+
+    transition {
+      days          = 30 # Transition objects to another storage class after 30 days
+      storage_class = "STANDARD_IA" # Change to desired storage class (e.g., STANDARD_IA, GLACIER, etc.)
+    }
+
+    expiration {
+      days = 365 # Expire (delete) objects after 365 days
+    }
+  }  
 }
 
 resource "aws_s3_bucket_versioning" "argorand_lambdas_repository_versioning" {
@@ -43,8 +66,8 @@ resource "aws_lambda_function" "samgov_notifier" {
   handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker"
   role          = aws_iam_role.lambda_execution_role.arn
   architectures = [ "arm64" ]
-  timeout       = 10
-  memory_size   = 256
+  timeout       = 120
+  memory_size   = 512
   publish       = true
 
   tracing_config {
@@ -69,8 +92,10 @@ resource "aws_lambda_function" "samgov_notifier" {
 
 resource "aws_dynamodb_table" "samgov" {
   name                        = "samgov"
-  billing_mode                = "PAY_PER_REQUEST"
+  billing_mode                = "PROVISIONED"
   deletion_protection_enabled = "true"
+  read_capacity               = 1
+  write_capacity              = 1
 
   attribute {
     name = "lastProcessedAt"
