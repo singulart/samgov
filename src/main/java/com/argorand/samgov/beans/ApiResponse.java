@@ -2,6 +2,7 @@ package com.argorand.samgov.beans;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+
 public class ApiResponse {
 
     @JsonProperty("_embedded")

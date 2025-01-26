@@ -1,9 +1,6 @@
 package com.argorand.samgov.beans;
 
 import java.util.List;
-
-import org.springframework.context.annotation.Description;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Result {
