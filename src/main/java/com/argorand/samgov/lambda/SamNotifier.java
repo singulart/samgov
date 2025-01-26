@@ -15,6 +15,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
+import com.argorand.samgov.beans.ApiResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -34,6 +37,9 @@ public class SamNotifier {
 
     @Value("${SAVED_QUERIES_TABLE:__FIXME__MISSING_TABLE_NAME}")
     private String savedQueriesTable;
+
+    private ObjectMapper objectMapper = new ObjectMapper();
+    private HttpClient client = HttpClient.newHttpClient();
 
     private final Logger log = LoggerFactory.getLogger(SamNotifier.class);
 
@@ -68,8 +74,6 @@ public class SamNotifier {
 
 
                     try {
-                        HttpClient client = HttpClient.newHttpClient();
-            
                         HttpRequest request = HttpRequest.newBuilder()
                                 .uri(URI.create(q.s()))
                                 .header("Accept", "application/hal+json")
@@ -77,7 +81,7 @@ public class SamNotifier {
                                 .build();
             
                         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            
+                        ApiResponse apiResponse = objectMapper.readValue(response.body(), ApiResponse.class);
                         log.info("Response JSON: " + response.body());
                     } catch (Exception e) {
                         e.printStackTrace();
