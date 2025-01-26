@@ -3,6 +3,8 @@ locals {
   function_version    = "0.1.0-SNAPSHOT"
 }
 
+data "aws_caller_identity" "current" {}
+
 resource "aws_s3_bucket" "argorand_lambdas_repository" {
   bucket = "argorand-lambdas-repository"
 }
@@ -86,6 +88,8 @@ resource "aws_lambda_function" "samgov_notifier" {
     variables = {
       SAVED_QUERIES_TABLE    = aws_dynamodb_table.samgov.name
       SPRING_PROFILES_ACTIVE = "prod"
+      SES_SENDER             = "noreply@argorand.io"
+      RANDOM_VAR             = "42873498237987"
     }
   }
 }
@@ -146,16 +150,13 @@ resource "aws_iam_policy" "lambda_permissions" {
         Resource = aws_dynamodb_table.samgov.arn
       },
       {
-        Action = [
-          "dynamodb:ListTables" //TODO remove 
-        ],
-        Effect   = "Allow",
-        Resource = "*"
-      },
-      {
         Action   = "ses:SendEmail",
         Effect   = "Allow",
-        Resource = "arn:aws:ses:us-east-1:794689098735:identity/argorand.io"
+        Resource = [
+          "arn:aws:ses:us-east-1:${data.aws_caller_identity.current.account_id}:configuration-set/my-first-configuration-set",
+          "arn:aws:ses:us-east-1:${data.aws_caller_identity.current.account_id}:identity/noreply@argorand.io",
+          "arn:aws:ses:us-east-1:${data.aws_caller_identity.current.account_id}:identity/argorand.io"
+        ]
       },
       {
         Action = [

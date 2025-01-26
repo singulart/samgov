@@ -74,7 +74,8 @@ shadowJar {
 }
 
 dependencies {
-	implementation 'software.amazon.awssdk:dynamodb:2.29.47'
+	implementation 'software.amazon.awssdk:dynamodb:2.30.6'
+	implementation 'software.amazon.awssdk:ses:2.30.6'
 	implementation 'org.springframework.boot:spring-boot-starter'
 	implementation 'org.springframework.cloud:spring-cloud-function-adapter-aws'
 	implementation 'org.springframework.boot.experimental:spring-boot-thin-wrapper:1.0.31.RELEASE'
