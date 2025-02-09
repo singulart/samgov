@@ -19,8 +19,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
 import com.argorand.samgov.beans.ApiResponse;
-import com.argorand.samgov.beans.Description;
-import com.argorand.samgov.beans.Organization;
 import com.argorand.samgov.beans.Result;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,6 +56,7 @@ public class SamNotifier {
 
     private static final String PRIMARY_KEY_ATTRIBUTE = "lastProcessedAt";
     private static final String SENT_ATTRIBUTE = "email_sent";
+    private static final String SAMGOV_API_CONTENT_TYPE = "application/hal+json";
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -75,7 +74,6 @@ public class SamNotifier {
                 .region(Region.of(region))
                 .credentialsProvider(DefaultCredentialsProvider.create());
 
-        // Override endpoint if specified (useful for local development)
         if (awsEndpoint != null && !awsEndpoint.isEmpty()) {
             builder.endpointOverride(java.net.URI.create(awsEndpoint));
         }
@@ -88,7 +86,6 @@ public class SamNotifier {
                 .region(Region.of(region))
                 .credentialsProvider(DefaultCredentialsProvider.create());
 
-        // Override endpoint if specified (useful for local development)
         if (awsEndpoint != null && !awsEndpoint.isEmpty()) {
             builder.endpointOverride(java.net.URI.create(awsEndpoint));
         }
@@ -100,7 +97,6 @@ public class SamNotifier {
         return () -> {
             ScanResponse scanResponse;
             do {
-                // Create a ScanRequest
                 ScanRequest scanRequest = ScanRequest.builder()
                     .tableName(savedQueriesTable)
                     .build();
@@ -109,16 +105,14 @@ public class SamNotifier {
                 for (Map<String, AttributeValue> item : scanResponse.items()) {
                     var q = item.get("query");
                     var recipient = item.get("email").s();
-                    log.info(describeUrl(q.s()));
+                    log.info(SamUtils.describeUrl(q.s()));
                     try {
-                        log.info("Initial URL: {}", q.s());
-
                         var preparedUrl = DateSubstitutor.updateUrl(q.s());
                         
                         log.info("Final URL: {}", preparedUrl);
                         HttpRequest request = HttpRequest.newBuilder()
                                 .uri(URI.create(preparedUrl))
-                                .header("Accept", "application/hal+json")
+                                .header("Accept", SAMGOV_API_CONTENT_TYPE)
                                 .GET()
                                 .build();
             
@@ -130,9 +124,9 @@ public class SamNotifier {
                         } else {
                             var alreadyProcessedIds = Optional.ofNullable(item.get(SENT_ATTRIBUTE).ss()).orElse(new ArrayList<>());
                             apiResponse.getEmbedded().getResults().removeIf(r -> alreadyProcessedIds.contains(r.getId()));
-                            sendEmail(sesClient, senderEmailAddress, recipient, "SAM.gov query has new results", generateSummary(apiResponse), null);
-                            var processedIds = apiResponse.getEmbedded().getResults().stream().map(Result::getId).collect(Collectors.toList());
-                            addProcessedItems(dynamoDbClient, item.get(PRIMARY_KEY_ATTRIBUTE).s(), processedIds);
+                            sendEmail(sesClient, senderEmailAddress, recipient, "SAM.gov query has new results", SamUtils.generateSummary(apiResponse), null);
+                            var opportunityIds = apiResponse.getEmbedded().getResults().stream().map(Result::getId).collect(Collectors.toList());
+                            saveProcessedOpportunities(dynamoDbClient, item.get(PRIMARY_KEY_ATTRIBUTE).s(), opportunityIds);
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -148,9 +142,10 @@ public class SamNotifier {
         };
     }
 
-    void addProcessedItems(DynamoDbClient dynamoDbClient, String primaryKeyValue, List<String> newIds) {
+    void saveProcessedOpportunities(DynamoDbClient dynamoDbClient, String primaryKeyValue, List<String> opportunityIds) {
+
         // Convert the list of strings to a set of AttributeValue
-        List<AttributeValue> newIdAttrs = newIds.stream()
+        List<AttributeValue> newIdAttrs = opportunityIds.stream()
                 .map(AttributeValue::fromS)
                 .toList();
 
@@ -181,103 +176,13 @@ public class SamNotifier {
         System.out.println("Successfully updated the item.");
     }
 
-
-    public static String describeUrl(String url) {
-        if (url == null || !url.contains("?")) {
-            return "Invalid or missing search URL.";
-        }
-
-        // Extract query parameters
-        String queryString = url.substring(url.indexOf("?") + 1);
-        String[] params = queryString.split("&");
-        Map<String, String> queryMap = new HashMap<>();
-
-        for (String param : params) {
-            String[] keyValue = param.split("=", 2);
-            if (keyValue.length == 2) {
-                queryMap.put(keyValue[0], keyValue[1]);
-            } else {
-                queryMap.put(keyValue[0], "");
-            }
-        }
-
-        // Build human-readable description
-        return queryMap.entrySet().stream()
-                .map(entry -> parseParameter(entry.getKey(), entry.getValue()))
-                .filter(desc -> !desc.isEmpty())
-                .collect(Collectors.joining("\n"));
-    }
-
-    private static String parseParameter(String key, String value) {
-        switch (key) {
-            case "q":
-                return "Keyword: " + value;
-            case "response_date.to":
-                return "Response deadline (to): " + value;
-            case "response_date.from":
-                return "Response deadline (from): " + value;
-            case "modified_date.to":
-                return "Modified date (to): " + value;
-            case "modified_date.from":
-                return "Modified date (from): " + value;
-            case "naics":
-                return "NAICS code: " + value;
-            case "psc":
-                return "PSC codes: " + value.replace(",", ", ");
-            case "organization_id":
-                return "Org ID: " + value;
-            case "vendor_name":
-                return "Vendor name: " + value;
-            case "ueiSAM":
-                return "UEI SAM: " + value;
-            case "notice_type":
-                return "Notice type: " + value;
-            case "set_aside":
-                return "Set-aside: " + value;
-            default:
-                return ""; // Skip unknown parameters
-        }
-    }
-
-    public static String generateSummary(ApiResponse apiResponse) {
-        StringBuilder summary = new StringBuilder();
-
-        if (apiResponse != null && apiResponse.getEmbedded() != null) {
-            List<Result> results = apiResponse.getEmbedded().getResults();
-
-            if (results != null) {
-                for (Result result : results) {
-
-                    summary.append("View on SAM: ").append(
-                        String.format("https://sam.gov/opp/%s/view", result.getId())).append("\n");
-                    summary.append("Title: ").append(result.getTitle()).append("\n");
-
-                    if (result.getDescriptions() != null) {
-                        for (Description description : result.getDescriptions()) {
-                            summary.append("Description: ").append(description.getContent()).append("\n");
-                        }
-                    }
-
-                    // Add Organization.name for level = 1
-                    if (result.getOrganizationHierarchy() != null) {
-                        for (Organization organization : result.getOrganizationHierarchy()) {
-                            if (organization.getLevel() == 1) {
-                                summary.append("Organization (Level 1): ").append(organization.getName()).append("\n");
-                            }
-                        }
-                    }
-
-                    // Separate results with a divider for clarity
-                    summary.append("\n---\n");
-                }
-            }
-        }
-
-        return summary.toString();
-    }    
-
-
     private void sendEmail(SesClient sesClient, String sender, String recipient, String subject, String bodyText, String bodyHtml) {
+        
+        if(bodyText.isEmpty()) {
+            log.info("Nothing to send");
+            return;
+        }
+
         Content subjectContent = Content.builder().data(subject).build();
         Body body = Body.builder()
                 .text(Content.builder().data(bodyText).build())
