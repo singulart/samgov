@@ -6,7 +6,7 @@
             "description": "AWS region"
         },
         {
-            "name": "aws.dynamodb.endpoint",
+            "name": "aws.endpoint",
             "type": "java.lang.String",
             "description": "AWS CLI endpoint"
         }

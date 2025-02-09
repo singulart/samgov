@@ -1,8 +1,10 @@
 package com.argorand.samgov.lambda;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.net.http.HttpClient;
@@ -30,6 +32,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.dynamodb.model.ScanResponse;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 import software.amazon.awssdk.services.ses.SesClient;
 import software.amazon.awssdk.services.ses.SesClientBuilder;
 import software.amazon.awssdk.services.ses.model.Body;
@@ -44,7 +47,7 @@ public class SamNotifier {
     @Value("${aws.region}")
     private String region;
 
-    @Value("${aws.dynamodb.endpoint:}") //TODO rename to aws.endpoint
+    @Value("${aws.endpoint:}")
     private String awsEndpoint;
 
     @Value("${SAVED_QUERIES_TABLE:__FIXME__MISSING_TABLE_NAME}")
@@ -52,6 +55,9 @@ public class SamNotifier {
 
     @Value("${SES_SENDER:api@argorand.io}")
     private String senderEmailAddress;
+
+    private static final String PRIMARY_KEY_ATTRIBUTE = "lastProcessedAt";
+    private static final String SENT_ATTRIBUTE = "email_sent";
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -73,7 +79,6 @@ public class SamNotifier {
         if (awsEndpoint != null && !awsEndpoint.isEmpty()) {
             builder.endpointOverride(java.net.URI.create(awsEndpoint));
         }
-
         return builder.build();
     }
 
@@ -83,11 +88,10 @@ public class SamNotifier {
                 .region(Region.of(region))
                 .credentialsProvider(DefaultCredentialsProvider.create());
 
-                // Override endpoint if specified (useful for local development)
+        // Override endpoint if specified (useful for local development)
         if (awsEndpoint != null && !awsEndpoint.isEmpty()) {
             builder.endpointOverride(java.net.URI.create(awsEndpoint));
         }
-
         return builder.build();
     }
 
@@ -106,11 +110,14 @@ public class SamNotifier {
                     var q = item.get("query");
                     var recipient = item.get("email").s();
                     log.info(describeUrl(q.s()));
-
-
                     try {
+                        log.info("Initial URL: {}", q.s());
+
+                        var preparedUrl = DateSubstitutor.updateUrl(q.s());
+                        
+                        log.info("Final URL: {}", preparedUrl);
                         HttpRequest request = HttpRequest.newBuilder()
-                                .uri(URI.create(q.s()))
+                                .uri(URI.create(preparedUrl))
                                 .header("Accept", "application/hal+json")
                                 .GET()
                                 .build();
@@ -118,11 +125,18 @@ public class SamNotifier {
                         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
                         ApiResponse apiResponse = objectMapper.readValue(response.body(), ApiResponse.class);
 
-                        sendEmail(sesClient, senderEmailAddress, recipient, "SAM.gov query has new results", generateSummary(apiResponse), null);
+                        if(apiResponse.getEmbedded().getResults().isEmpty()) {
+                            log.info("No search results");
+                        } else {
+                            var alreadyProcessedIds = Optional.ofNullable(item.get(SENT_ATTRIBUTE).ss()).orElse(new ArrayList<>());
+                            apiResponse.getEmbedded().getResults().removeIf(r -> alreadyProcessedIds.contains(r.getId()));
+                            sendEmail(sesClient, senderEmailAddress, recipient, "SAM.gov query has new results", generateSummary(apiResponse), null);
+                            var processedIds = apiResponse.getEmbedded().getResults().stream().map(Result::getId).collect(Collectors.toList());
+                            addProcessedItems(dynamoDbClient, item.get(PRIMARY_KEY_ATTRIBUTE).s(), processedIds);
+                        }
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
-
                 }
 
                 // Set the ExclusiveStartKey to continue scanning if there are more items
@@ -132,6 +146,39 @@ public class SamNotifier {
             } while (scanResponse.lastEvaluatedKey() != null && !scanResponse.lastEvaluatedKey().isEmpty());
             return null;
         };
+    }
+
+    void addProcessedItems(DynamoDbClient dynamoDbClient, String primaryKeyValue, List<String> newIds) {
+        // Convert the list of strings to a set of AttributeValue
+        List<AttributeValue> newIdAttrs = newIds.stream()
+                .map(AttributeValue::fromS)
+                .toList();
+
+        // Update expression to append items to the "processed" list
+        String updateExpression = "SET #attr = list_append(if_not_exists(#attr, :empty_list), :newValues)";
+
+        // Define placeholders and values for the update expression
+        Map<String, AttributeValue> expressionAttributeValues = Map.of(
+                ":newValues", AttributeValue.fromL(newIdAttrs),
+                ":empty_list", AttributeValue.fromL(List.of()) // Empty list if attribute doesn't exist
+        );
+
+        Map<String, String> expressionAttributeNames = Map.of(
+                "#attr", SENT_ATTRIBUTE
+        );
+
+        // Create the update request
+        UpdateItemRequest updateRequest = UpdateItemRequest.builder()
+                .tableName(savedQueriesTable)
+                .key(Map.of(PRIMARY_KEY_ATTRIBUTE, AttributeValue.fromS(primaryKeyValue)))
+                .updateExpression(updateExpression)
+                .expressionAttributeNames(expressionAttributeNames)
+                .expressionAttributeValues(expressionAttributeValues)
+                .build();
+
+        // Perform the update operation
+        dynamoDbClient.updateItem(updateRequest);
+        System.out.println("Successfully updated the item.");
     }
 
 
@@ -200,11 +247,11 @@ public class SamNotifier {
 
             if (results != null) {
                 for (Result result : results) {
-                    // Add Result.id and Result.title
-                    summary.append("Result ID: ").append(result.getId()).append("\n");
+
+                    summary.append("View on SAM: ").append(
+                        String.format("https://sam.gov/opp/%s/view", result.getId())).append("\n");
                     summary.append("Title: ").append(result.getTitle()).append("\n");
 
-                    // Add Descriptions content
                     if (result.getDescriptions() != null) {
                         for (Description description : result.getDescriptions()) {
                             summary.append("Description: ").append(description.getContent()).append("\n");

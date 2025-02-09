@@ -1,5 +1,7 @@
 package com.argorand.samgov.beans;
 
+import java.util.Optional;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 
@@ -13,7 +15,7 @@ public class ApiResponse {
 
     // Getters and Setters
     public Embedded getEmbedded() {
-        return embedded;
+        return Optional.ofNullable(embedded).orElse(new Embedded());
     }
 
     public void setEmbedded(Embedded embedded) {
