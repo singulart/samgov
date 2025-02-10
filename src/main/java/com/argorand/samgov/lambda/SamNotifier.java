@@ -123,7 +123,8 @@ public class SamNotifier {
                             apiResponse.getEmbedded().getResults().removeIf(r -> alreadyProcessedIds.contains(r.getId()));
                             // log.info("Results after cleanup {}", apiResponse.getEmbedded().getResults().size());
                             if(!apiResponse.getEmbedded().getResults().isEmpty()) {
-                                sendEmail(sesClient, senderEmailAddress, recipient, "SAM.gov query has new results", 
+                                sendEmail(sesClient, senderEmailAddress, recipient, 
+                                    String.format("Your SAM.gov query %s has new results", SamUtils.describeUrl(preparedUrl)), 
                                     null, SamUtils.generateSummary(apiResponse, client, objectMapper));
                                 var opportunityIds = apiResponse.getEmbedded().getResults().stream().map(Result::getId).collect(Collectors.toList());
                                 saveProcessedOpportunities(dynamoDbClient, item.get(PRIMARY_KEY_ATTRIBUTE).s(), opportunityIds);

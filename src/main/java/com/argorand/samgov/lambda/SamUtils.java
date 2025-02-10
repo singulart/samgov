@@ -35,10 +35,10 @@ public class SamUtils {
         }
 
         // Build human-readable description
-        return queryMap.entrySet().stream()
+        return "[" + queryMap.entrySet().stream()
                 .map(entry -> parseParameter(entry.getKey(), entry.getValue()))
                 .filter(desc -> !desc.isEmpty())
-                .collect(Collectors.joining("\n"));
+                .collect(Collectors.joining(" ")) + "]";
     }
 
     public static String parseParameter(String key, String value) {
@@ -74,32 +74,32 @@ public class SamUtils {
 
         List<Result> results = apiResponse.getEmbedded().getResults();
 
-        for (Result result : results) {
+        for (Result solicitation : results) {
 
+            summary.append("<h2>").append(solicitation.getTitle()).append("</h2>");
+
+            summary.append("<p>");
             summary.append("View on SAM: ").append(
-                String.format("https://sam.gov/opp/%s/view", result.getId())).append("\n");
-            summary.append("Title: ").append(result.getTitle()).append("\n");
+                String.format("https://sam.gov/opp/%s/view", solicitation.getId())).append("\n");
 
-            if (result.getDescriptions() != null) {
-                HttpRequest getOpportunityRequest = RestRequestFactory.buildGetOpportunityQuery(result.getId());
+            if (solicitation.getDescriptions() != null) {
+                HttpRequest getOpportunityRequest = RestRequestFactory.buildGetOpportunityQuery(solicitation.getId());
                 HttpResponse<String> response =  restCient.send(getOpportunityRequest, HttpResponse.BodyHandlers.ofString());
                 Solicitation opportunity = objectMapper.readValue(response.body(), Solicitation.class);
                 for (Description description : opportunity.getDescriptions()) {
-                    summary.append("Description: ").append(description.getBody()).append("\n");
+                    summary.append(description.getBody()).append("<br/>");
                 }
             }
 
             // Add Organization.name for level = 1
-            if (result.getOrganizationHierarchy() != null) {
-                for (Organization organization : result.getOrganizationHierarchy()) {
+            if (solicitation.getOrganizationHierarchy() != null) {
+                for (Organization organization : solicitation.getOrganizationHierarchy()) {
                     if (organization.getLevel() == 1) {
-                        summary.append("Organization: ").append(organization.getName()).append("\n");
+                        summary.append("Organization: ").append(organization.getName()).append("<br/>");
                     }
                 }
             }
-
-            // Separate results with a divider for clarity
-            summary.append("\n---\n");
+            summary.append("</p>");
         }
 
         return summary.toString();
