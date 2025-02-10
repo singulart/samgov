@@ -56,7 +56,6 @@ public class SamNotifier {
 
     private static final String PRIMARY_KEY_ATTRIBUTE = "lastProcessedAt";
     private static final String SENT_ATTRIBUTE = "email_sent";
-    private static final String SAMGOV_API_CONTENT_TYPE = "application/hal+json";
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -105,16 +104,11 @@ public class SamNotifier {
                 for (Map<String, AttributeValue> item : scanResponse.items()) {
                     var q = item.get("query");
                     var recipient = item.get("email").s();
-                    log.info(SamUtils.describeUrl(q.s()));
                     try {
                         var preparedUrl = DateSubstitutor.updateUrl(q.s());
                         
                         log.info("Final URL: {}", preparedUrl);
-                        HttpRequest request = HttpRequest.newBuilder()
-                                .uri(URI.create(preparedUrl))
-                                .header("Accept", SAMGOV_API_CONTENT_TYPE)
-                                .GET()
-                                .build();
+                        HttpRequest request = RestRequestFactory.buildMainRestQuery(preparedUrl);
             
                         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
                         ApiResponse apiResponse = objectMapper.readValue(response.body(), ApiResponse.class);
@@ -122,11 +116,18 @@ public class SamNotifier {
                         if(apiResponse.getEmbedded().getResults().isEmpty()) {
                             log.info("No search results");
                         } else {
-                            var alreadyProcessedIds = Optional.ofNullable(item.get(SENT_ATTRIBUTE).ss()).orElse(new ArrayList<>());
+                            var alreadyProcessedIds = 
+                                item.getOrDefault(SENT_ATTRIBUTE, AttributeValue.fromSs(new ArrayList<>())).ss();
+                            // log.info("alreadyProcessedIds {}", alreadyProcessedIds.toString());
+                            // log.info("Results before cleanup {}", apiResponse.getEmbedded().getResults().size());
                             apiResponse.getEmbedded().getResults().removeIf(r -> alreadyProcessedIds.contains(r.getId()));
-                            sendEmail(sesClient, senderEmailAddress, recipient, "SAM.gov query has new results", SamUtils.generateSummary(apiResponse), null);
-                            var opportunityIds = apiResponse.getEmbedded().getResults().stream().map(Result::getId).collect(Collectors.toList());
-                            saveProcessedOpportunities(dynamoDbClient, item.get(PRIMARY_KEY_ATTRIBUTE).s(), opportunityIds);
+                            // log.info("Results after cleanup {}", apiResponse.getEmbedded().getResults().size());
+                            if(!apiResponse.getEmbedded().getResults().isEmpty()) {
+                                sendEmail(sesClient, senderEmailAddress, recipient, "SAM.gov query has new results", 
+                                    null, SamUtils.generateSummary(apiResponse, client, objectMapper));
+                                var opportunityIds = apiResponse.getEmbedded().getResults().stream().map(Result::getId).collect(Collectors.toList());
+                                saveProcessedOpportunities(dynamoDbClient, item.get(PRIMARY_KEY_ATTRIBUTE).s(), opportunityIds);
+                            }
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -144,49 +145,29 @@ public class SamNotifier {
 
     void saveProcessedOpportunities(DynamoDbClient dynamoDbClient, String primaryKeyValue, List<String> opportunityIds) {
 
-        // Convert the list of strings to a set of AttributeValue
-        List<AttributeValue> newIdAttrs = opportunityIds.stream()
-                .map(AttributeValue::fromS)
-                .toList();
+        String updateExpression = String.format("ADD %s :newValues", SENT_ATTRIBUTE);
 
-        // Update expression to append items to the "processed" list
-        String updateExpression = "SET #attr = list_append(if_not_exists(#attr, :empty_list), :newValues)";
-
-        // Define placeholders and values for the update expression
         Map<String, AttributeValue> expressionAttributeValues = Map.of(
-                ":newValues", AttributeValue.fromL(newIdAttrs),
-                ":empty_list", AttributeValue.fromL(List.of()) // Empty list if attribute doesn't exist
+                ":newValues", AttributeValue.fromSs(opportunityIds)
         );
 
-        Map<String, String> expressionAttributeNames = Map.of(
-                "#attr", SENT_ATTRIBUTE
-        );
-
-        // Create the update request
         UpdateItemRequest updateRequest = UpdateItemRequest.builder()
                 .tableName(savedQueriesTable)
                 .key(Map.of(PRIMARY_KEY_ATTRIBUTE, AttributeValue.fromS(primaryKeyValue)))
                 .updateExpression(updateExpression)
-                .expressionAttributeNames(expressionAttributeNames)
                 .expressionAttributeValues(expressionAttributeValues)
                 .build();
 
-        // Perform the update operation
         dynamoDbClient.updateItem(updateRequest);
         System.out.println("Successfully updated the item.");
     }
 
     private void sendEmail(SesClient sesClient, String sender, String recipient, String subject, String bodyText, String bodyHtml) {
         
-        if(bodyText.isEmpty()) {
-            log.info("Nothing to send");
-            return;
-        }
-
         Content subjectContent = Content.builder().data(subject).build();
         Body body = Body.builder()
-                .text(Content.builder().data(bodyText).build())
-                // .html(Content.builder().data(bodyHtml).build())
+                //.text(Content.builder().data(bodyText).build())
+                .html(Content.builder().data(bodyHtml).build())
                 .build();
 
         Message message = Message.builder()

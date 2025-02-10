@@ -7,24 +7,23 @@ public class Description {
     @JsonProperty("lastModifiedDate")
     private String lastModifiedDate;
 
-    @JsonProperty("content")
-    private String content;
+    @JsonProperty("body")
+    private String body;
 
     public String getLastModifiedDate() {
         return lastModifiedDate;
-    }
-
-    public String getContent() {
-        return content;
     }
 
     public void setLastModifiedDate(String lastModifiedDate) {
         this.lastModifiedDate = lastModifiedDate;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public String getBody() {
+        return body;
     }
 
-
+    public void setBody(String body) {
+        this.body = body;
+    }
+    
 }

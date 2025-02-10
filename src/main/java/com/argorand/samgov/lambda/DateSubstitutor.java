@@ -1,6 +1,7 @@
 package com.argorand.samgov.lambda;
 
 import java.net.URI;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -13,7 +14,7 @@ public class DateSubstitutor {
     public static String updateUrl(String inputUrl) {
         try {
 
-            ZonedDateTime now = ZonedDateTime.now();
+            ZonedDateTime now = ZonedDateTime.now(ZoneId.of("US/Eastern"));
 
             // DateTime formatter for the desired format
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'-00:00'");

@@ -1,5 +1,8 @@
 package com.argorand.samgov.lambda;
 
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +12,8 @@ import com.argorand.samgov.beans.ApiResponse;
 import com.argorand.samgov.beans.Description;
 import com.argorand.samgov.beans.Organization;
 import com.argorand.samgov.beans.Result;
+import com.argorand.samgov.beans.Solicitation;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class SamUtils {
     
@@ -37,6 +42,7 @@ public class SamUtils {
     }
 
     public static String parseParameter(String key, String value) {
+        if(value == null || value.isBlank()) return "";
         switch (key) {
             case "q":
                 return "Keyword: " + value;
@@ -63,7 +69,7 @@ public class SamUtils {
         }
     }
 
-    public static String generateSummary(ApiResponse apiResponse) {
+    public static String generateSummary(ApiResponse apiResponse, HttpClient restCient, ObjectMapper objectMapper) throws Exception {
         StringBuilder summary = new StringBuilder();
 
         List<Result> results = apiResponse.getEmbedded().getResults();
@@ -75,8 +81,11 @@ public class SamUtils {
             summary.append("Title: ").append(result.getTitle()).append("\n");
 
             if (result.getDescriptions() != null) {
-                for (Description description : result.getDescriptions()) {
-                    summary.append("Description: ").append(description.getContent()).append("\n");
+                HttpRequest getOpportunityRequest = RestRequestFactory.buildGetOpportunityQuery(result.getId());
+                HttpResponse<String> response =  restCient.send(getOpportunityRequest, HttpResponse.BodyHandlers.ofString());
+                Solicitation opportunity = objectMapper.readValue(response.body(), Solicitation.class);
+                for (Description description : opportunity.getDescriptions()) {
+                    summary.append("Description: ").append(description.getBody()).append("\n");
                 }
             }
 
@@ -84,7 +93,7 @@ public class SamUtils {
             if (result.getOrganizationHierarchy() != null) {
                 for (Organization organization : result.getOrganizationHierarchy()) {
                     if (organization.getLevel() == 1) {
-                        summary.append("Organization (Level 1): ").append(organization.getName()).append("\n");
+                        summary.append("Organization: ").append(organization.getName()).append("\n");
                     }
                 }
             }
