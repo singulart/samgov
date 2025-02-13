@@ -1,6 +1,6 @@
 locals {
   schedule_expression = "rate(30 minutes)"
-  function_version    = "0.2.0-SNAPSHOT"
+  function_version    = "0.3.0-SNAPSHOT"
 }
 
 data "aws_caller_identity" "current" {}
@@ -76,10 +76,14 @@ resource "aws_lambda_function" "samgov_notifier" {
     mode = "Active"
   }
 
+
+  // 2.12.2025 Disabled SnapStart because it slows down the Lambda Version creation significantly and does not bring any advantage 
+  // because Lambda running every 30 minutes will have cold times anyways. 
+
   // https://docs.aws.amazon.com/lambda/latest/dg/snapstart.html#snapstart-runtimes
-  snap_start {
-    apply_on = "PublishedVersions"
-  }
+  # snap_start {
+  #   apply_on = "PublishedVersions"
+  # }
 
   s3_bucket = aws_s3_bucket.argorand_lambdas_repository.bucket
   s3_key    = "samgov-${local.function_version}-aws.jar"
