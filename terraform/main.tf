@@ -105,6 +105,11 @@ resource "aws_dynamodb_table" "samgov" {
   read_capacity               = 1
   write_capacity              = 1
 
+  point_in_time_recovery {
+    enabled = true
+    recovery_period_in_days = 10
+  }
+
   attribute {
     name = "lastProcessedAt"
     type = "S"
