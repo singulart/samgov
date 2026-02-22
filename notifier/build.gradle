@@ -3,9 +3,8 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '4.0.3'
 	id 'io.spring.dependency-management' version '1.1.7'
-	id 'com.github.johnrengelman.shadow' version '8.1.1'
+	id 'com.gradleup.shadow' version '9.3.1'
 	id 'maven-publish'
-	id 'org.springframework.boot.experimental.thin-launcher' version "1.0.31.RELEASE"
 }
 
 group = 'com.argorand'
@@ -25,7 +24,7 @@ ext {
 	set('springCloudVersion', "2025.1.1")
 }
 
-assemble.dependsOn = [thinJar, shadowJar]
+assemble.dependsOn shadowJar
 
 publishing {
 	publications {
@@ -43,15 +42,12 @@ publishing {
 	}
 }
 
-shadowJar.mustRunAfter thinJar
-
-
 import com.github.jengelman.gradle.plugins.shadow.transformers.*;
 
 shadowJar {
 	archiveClassifier = 'aws'
 	manifest {
- 	  	inheritFrom(project.tasks.thinJar.manifest)
+ 	  	inheritFrom(project.tasks.bootJar.manifest)
   	}
   	// Required for Spring
 	mergeServiceFiles()
@@ -79,7 +75,6 @@ dependencies {
 	implementation 'software.amazon.awssdk:ses:2.41.33'
 	implementation 'org.springframework.boot:spring-boot-starter'
 	implementation 'org.springframework.cloud:spring-cloud-function-adapter-aws'
-	implementation 'org.springframework.boot.experimental:spring-boot-thin-wrapper:1.0.31.RELEASE'
 	implementation "tools.jackson.core:jackson-databind"
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	

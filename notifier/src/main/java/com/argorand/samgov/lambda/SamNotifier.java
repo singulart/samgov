@@ -35,9 +35,13 @@ import software.amazon.awssdk.services.ses.model.Destination;
 import software.amazon.awssdk.services.ses.model.Message;
 import software.amazon.awssdk.services.ses.model.SendEmailRequest;
 
-import com.fasterxml.jackson.databind.SerializationFeature;
+import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
 
-@SpringBootApplication 
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
+
+@SpringBootApplication
 public class SamNotifier {
 
     @Value("${aws.region}")
@@ -57,9 +61,12 @@ public class SamNotifier {
         return builder -> builder.enable(SerializationFeature.INDENT_OUTPUT);
     }
 
-    JsonMapper objectMapper = JsonMapper.builder()
-       .disable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-       .build();
+    @Bean
+    JsonMapper objectMapper() {
+        return JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .build();
+    }
     
     private HttpClient client = HttpClient.newHttpClient();
 
@@ -91,7 +98,7 @@ public class SamNotifier {
     }
 
     @Bean
-    public Supplier<Void> checkQueryUpdates(DynamoDbEnhancedClient dynamoDbClient, SesClient sesClient) {
+    public Supplier<Void> checkQueryUpdates(DynamoDbEnhancedClient dynamoDbClient, SesClient sesClient, JsonMapper objectMapper) {
         return () -> {
             DynamoDbTable<SamQuery> table = dynamoDbClient.table(savedQueriesTable, TableSchema.fromBean(SamQuery.class));
 

@@ -14,6 +14,8 @@ import com.argorand.samgov.beans.Organization;
 import com.argorand.samgov.beans.Result;
 import com.argorand.samgov.beans.Solicitation;
 
+import tools.jackson.databind.json.JsonMapper;
+
 public class SamUtils {
     
     public static String describeUrl(String url) {
@@ -68,7 +70,7 @@ public class SamUtils {
         }
     }
 
-    public static String generateSummary(ApiResponse apiResponse, HttpClient restCient, ObjectMapper objectMapper) throws Exception {
+    public static String generateSummary(ApiResponse apiResponse, HttpClient restCient, JsonMapper objectMapper) throws Exception {
         StringBuilder summary = new StringBuilder();
 
         List<Result> results = apiResponse.getEmbedded().getResults();
