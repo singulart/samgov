@@ -7,17 +7,49 @@ import java.util.Set;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondaryPartitionKey;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSecondarySortKey;
 
 @DynamoDbBean
 public class SamQuery {
 
+    private String notificationId;
+    private String userId;
+    private String createdAt;
     private String lastProcessedAt;
     private String queryUrl;
     private String queryDescription;
     private String email;
     private Set<String> processedOpportunities;
+    private Integer version;
 
     @DynamoDbPartitionKey
+    public String getNotificationId() {
+        return notificationId;
+    }
+
+    public void setNotificationId(String notificationId) {
+        this.notificationId = notificationId;
+    }
+
+    @DynamoDbSecondaryPartitionKey(indexNames = "gsi_userId_createdAt")
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    @DynamoDbSecondarySortKey(indexNames = "gsi_userId_createdAt")
+    public String getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(String createdAt) {
+        this.createdAt = createdAt;
+    }
+
     public String getLastProcessedAt() {
         return lastProcessedAt;
     }
@@ -59,6 +91,14 @@ public class SamQuery {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
     }
 
     public void addProcessedOpportunities(List<String> opportunities) {

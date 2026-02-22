@@ -1,6 +1,6 @@
 locals {
   schedule_expression = "rate(30 minutes)"
-  function_version    = "0.4.1-SNAPSHOT"
+  function_version    = "0.4.2-SNAPSHOT"
 }
 
 data "aws_caller_identity" "current" {}
