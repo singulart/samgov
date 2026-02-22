@@ -1,6 +1,6 @@
 locals {
   schedule_expression = "rate(30 minutes)"
-  function_version    = "0.3.0-SNAPSHOT"
+  function_version    = "0.4.1-SNAPSHOT"
 }
 
 data "aws_caller_identity" "current" {}
@@ -69,7 +69,7 @@ resource "aws_lambda_function" "samgov_notifier" {
   role          = aws_iam_role.lambda_execution_role.arn
   architectures = [ "arm64" ]
   timeout       = 120
-  memory_size   = 512
+  memory_size   = 4096
   publish       = true
 
   tracing_config {
@@ -90,7 +90,7 @@ resource "aws_lambda_function" "samgov_notifier" {
 
   environment {
     variables = {
-      SAVED_QUERIES_TABLE    = aws_dynamodb_table.samgov.name
+      SAVED_QUERIES_TABLE    = aws_dynamodb_table.samgov-v2.name
       SPRING_PROFILES_ACTIVE = "prod"
       SES_SENDER             = "noreply@argorand.io"
       RANDOM_VAR             = "42873498237987"

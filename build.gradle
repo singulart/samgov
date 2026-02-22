@@ -7,7 +7,7 @@ plugins {
 }
 
 group = 'com.argorand'
-version = '0.3.0-SNAPSHOT'
+version = '0.4.1-SNAPSHOT'
 
 java {
 	sourceCompatibility = '21'
@@ -43,12 +43,35 @@ shadowJar {
 	manifest {
 		inheritFrom(project.tasks.bootJar.manifest)
 	}
+	dependencies {
+		exclude(dependency('org.springframework.cloud:spring-cloud-function-web'))
+	}
+	// Allow append transformers to receive duplicate files (default EXCLUDE prevents merging)
+	filesMatching('META-INF/spring/**') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+	filesMatching('META-INF/spring.factories') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+	filesMatching('META-INF/spring.handlers') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+	filesMatching('META-INF/spring.schemas') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+	filesMatching('META-INF/spring.tooling') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+	filesMatching('META-INF/spring.components') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
 	mergeServiceFiles()
 	append 'META-INF/spring.handlers'
 	append 'META-INF/spring.schemas'
 	append 'META-INF/spring.tooling'
 	append 'META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports'
 	append 'META-INF/spring/org.springframework.boot.actuate.autoconfigure.web.ManagementContextConfiguration.imports'
+	append 'META-INF/spring.components'
 	transform(PropertiesFileTransformer) {
 		paths = ['META-INF/spring.factories']
 		mergeStrategy = "append"
