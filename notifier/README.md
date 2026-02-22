@@ -20,7 +20,7 @@ aws lambda create-function \
   --role arn:aws:iam::000000000000:role/lambda-role \
   --handler org.springframework.cloud.function.adapter.aws.FunctionInvoker \
   --architectures arm64 \
-  --zip-file fileb:///Users/lex/samgov/build/libs/samgov-0.0.1-SNAPSHOT-aws.jar \
+  --zip-file fileb:///Users/lex/samgov/build/libs/samgov-0.3.0-SNAPSHOT-aws.jar \
   --endpoint-url=http://localhost:4566
 ```
 

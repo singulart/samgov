@@ -17,8 +17,6 @@ import org.springframework.context.annotation.Bean;
 import com.argorand.samgov.beans.ApiResponse;
 import com.argorand.samgov.beans.Result;
 import com.argorand.samgov.beans.dynamodb.SamQuery;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -37,7 +35,13 @@ import software.amazon.awssdk.services.ses.model.Destination;
 import software.amazon.awssdk.services.ses.model.Message;
 import software.amazon.awssdk.services.ses.model.SendEmailRequest;
 
-@SpringBootApplication 
+import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
+
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
+
+@SpringBootApplication
 public class SamNotifier {
 
     @Value("${aws.region}")
@@ -52,10 +56,16 @@ public class SamNotifier {
     @Value("${SES_SENDER:api@argorand.io}")
     private String senderEmailAddress;
 
-    private ObjectMapper objectMapper = new ObjectMapper();
+    @Bean
+    JsonMapperBuilderCustomizer jacksonCustomizer() {
+        return builder -> builder.enable(SerializationFeature.INDENT_OUTPUT);
+    }
 
-    {
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    @Bean
+    JsonMapper objectMapper() {
+        return JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                .build();
     }
     
     private HttpClient client = HttpClient.newHttpClient();
@@ -88,7 +98,7 @@ public class SamNotifier {
     }
 
     @Bean
-    public Supplier<Void> checkQueryUpdates(DynamoDbEnhancedClient dynamoDbClient, SesClient sesClient) {
+    public Supplier<Void> checkQueryUpdates(DynamoDbEnhancedClient dynamoDbClient, SesClient sesClient, JsonMapper objectMapper) {
         return () -> {
             DynamoDbTable<SamQuery> table = dynamoDbClient.table(savedQueriesTable, TableSchema.fromBean(SamQuery.class));
 

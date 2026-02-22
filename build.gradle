@@ -1,18 +1,27 @@
 plugins {
-	// id 'org.springframework.cloud.function.aws-lambda.packaging' version '1.0.0'
 	id 'java'
-	id 'org.springframework.boot' version '3.4.1'
-	id 'io.spring.dependency-management' version '1.1.3'
-	id 'com.github.johnrengelman.shadow' version '8.1.1'
+	id 'org.springframework.boot' version '4.0.3'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'com.gradleup.shadow' version '9.3.1'
 	id 'maven-publish'
-	id 'org.springframework.boot.experimental.thin-launcher' version "1.0.31.RELEASE"
 }
 
 group = 'com.argorand'
-version = '0.3.0-SNAPSHOT'
+version = '0.4.1-SNAPSHOT'
 
 java {
 	sourceCompatibility = '21'
+}
+
+sourceSets {
+	main {
+		java { srcDirs = ['notifier/src/main/java'] }
+		resources { srcDirs = ['notifier/src/main/resources'] }
+	}
+	test {
+		java { srcDirs = ['notifier/src/test/java'] }
+		resources { srcDirs = ['notifier/src/test/resources'] }
+	}
 }
 
 repositories {
@@ -22,63 +31,58 @@ repositories {
 }
 
 ext {
-	set('springCloudVersion', "2024.0.0")
+	set('springCloudVersion', "2025.1.1")
 }
 
-assemble.dependsOn = [thinJar, shadowJar]
+assemble.dependsOn shadowJar
 
-publishing {
-	publications {
-		maven(MavenPublication) {
-			from components.java
-			versionMapping {
-				usage('java-api') {
-					fromResolutionOf('runtimeClasspath')
-				}
-				usage('java-runtime') {
-					fromResolutionResult()
-				}
-			}
-		}
-	}
-}
-
-shadowJar.mustRunAfter thinJar
-
-
-import com.github.jengelman.gradle.plugins.shadow.transformers.*;
+import com.github.jengelman.gradle.plugins.shadow.transformers.*
 
 shadowJar {
 	archiveClassifier = 'aws'
 	manifest {
- 	  	inheritFrom(project.tasks.thinJar.manifest)
-  	}
-  	// Required for Spring
+		inheritFrom(project.tasks.bootJar.manifest)
+	}
+	dependencies {
+		exclude(dependency('org.springframework.cloud:spring-cloud-function-web'))
+	}
+	// Allow append transformers to receive duplicate files (default EXCLUDE prevents merging)
+	filesMatching('META-INF/spring/**') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+	filesMatching('META-INF/spring.factories') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+	filesMatching('META-INF/spring.handlers') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+	filesMatching('META-INF/spring.schemas') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+	filesMatching('META-INF/spring.tooling') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+	filesMatching('META-INF/spring.components') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
 	mergeServiceFiles()
 	append 'META-INF/spring.handlers'
 	append 'META-INF/spring.schemas'
 	append 'META-INF/spring.tooling'
 	append 'META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports'
 	append 'META-INF/spring/org.springframework.boot.actuate.autoconfigure.web.ManagementContextConfiguration.imports'
+	append 'META-INF/spring.components'
 	transform(PropertiesFileTransformer) {
 		paths = ['META-INF/spring.factories']
 		mergeStrategy = "append"
 	}
-
-	// This is un-successful attempt to minimize the jar. 
-
-	// minimize {
-	// 	exclude(dependency('org.springframework.cloud:spring-cloud-function-adapter-aws:.*'))
-	// 	exclude(dependency('commons-logging:.*:.*'))
-	// }
 }
 
 dependencies {
-	implementation 'software.amazon.awssdk:dynamodb-enhanced:2.30.17'
-	implementation 'software.amazon.awssdk:ses:2.30.17'
+	implementation 'software.amazon.awssdk:dynamodb-enhanced:2.41.33'
+	implementation 'software.amazon.awssdk:ses:2.41.33'
 	implementation 'org.springframework.boot:spring-boot-starter'
 	implementation 'org.springframework.cloud:spring-cloud-function-adapter-aws'
-	implementation 'org.springframework.boot.experimental:spring-boot-thin-wrapper:1.0.31.RELEASE'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
@@ -89,12 +93,24 @@ dependencyManagement {
 }
 
 configurations {
-    compileClasspath {
-        resolutionStrategy.activateDependencyLocking()
-    }
-    runtimeClasspath {
-        resolutionStrategy.activateDependencyLocking()
-    }
+	compileClasspath {
+		resolutionStrategy.activateDependencyLocking()
+	}
+	runtimeClasspath {
+		resolutionStrategy.activateDependencyLocking()
+	}
+}
+
+publishing {
+	publications {
+		maven(MavenPublication) {
+			from components.java
+			versionMapping {
+				usage('java-api') { fromResolutionOf('runtimeClasspath') }
+				usage('java-runtime') { fromResolutionResult() }
+			}
+		}
+	}
 }
 
 tasks.named('test') {

@@ -1,7 +1,5 @@
 package com.argorand.samgov.beans;
 
-import org.springframework.boot.autoconfigure.amqp.RabbitConnectionDetails.Address;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Organization {
