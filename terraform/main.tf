@@ -64,7 +64,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "argorand_lambdas_
 
 resource "aws_lambda_function" "samgov_notifier" {
   function_name = "samgov_notifier"
-  runtime       = "java21"
+  runtime       = "java25"
   handler       = "org.springframework.cloud.function.adapter.aws.FunctionInvoker"
   role          = aws_iam_role.lambda_execution_role.arn
   architectures = [ "arm64" ]
@@ -119,6 +119,89 @@ resource "aws_dynamodb_table" "samgov" {
 
 }
 
+resource "aws_dynamodb_table" "samgov-v2" {
+  name                        = "samgov-v2"
+  billing_mode                = "PROVISIONED"
+  deletion_protection_enabled = "true"
+  read_capacity               = 1
+  write_capacity              = 1
+
+  point_in_time_recovery {
+    enabled = true
+    recovery_period_in_days = 10
+  }
+
+  attribute {
+    name = "notificationId"
+    type = "S"
+  }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "createdAt"
+    type = "S"
+  } 
+
+  hash_key = "notificationId"
+
+  global_secondary_index {
+    name            = "gsi_userId_createdAt"
+    projection_type = "ALL"
+    read_capacity   = 1
+    write_capacity  = 1
+
+    key_schema {
+      attribute_name = "userId"
+      key_type       = "HASH"
+    }
+    key_schema {
+      attribute_name = "createdAt"
+      key_type       = "RANGE"
+    }
+  }
+}
+
+resource "aws_dynamodb_table" "samgov-users" {
+  name                        = "samgov-users"
+  billing_mode                = "PROVISIONED"
+  deletion_protection_enabled = "true"
+  read_capacity               = 1
+  write_capacity              = 1
+
+  point_in_time_recovery {
+    enabled = true
+    recovery_period_in_days = 10
+  }
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "email"
+    type = "S"
+  } 
+
+  hash_key = "userId"
+
+  global_secondary_index {
+    name            = "gsi_email"
+    projection_type = "ALL"
+    read_capacity   = 1
+    write_capacity  = 1
+
+    key_schema {
+      attribute_name = "email"
+      key_type       = "HASH"
+    }
+  }
+}
+
 resource "aws_cloudwatch_log_group" "samgov_function_logs" {
   name              = "/aws/lambda/samgov_notifier"
   retention_in_days = 14
@@ -156,7 +239,11 @@ resource "aws_iam_policy" "lambda_permissions" {
           "dynamodb:UpdateItem"
         ],
         Effect   = "Allow",
-        Resource = aws_dynamodb_table.samgov.arn
+        Resource = [ 
+          aws_dynamodb_table.samgov.arn,
+          aws_dynamodb_table.samgov-v2.arn,
+          aws_dynamodb_table.samgov-users.arn
+        ]
       },
       {
         Action   = "ses:SendEmail",
