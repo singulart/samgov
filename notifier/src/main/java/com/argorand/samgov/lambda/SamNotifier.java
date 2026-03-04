@@ -76,7 +76,7 @@ public class SamNotifier {
     public DynamoDbEnhancedClient dynamoDbClient() {
         DynamoDbClientBuilder builder = DynamoDbClient.builder()
                 .region(Region.of(region))
-                .credentialsProvider(DefaultCredentialsProvider.create());
+                .credentialsProvider(DefaultCredentialsProvider.builder().build());
 
         if (awsEndpoint != null && !awsEndpoint.isEmpty()) {
             builder.endpointOverride(java.net.URI.create(awsEndpoint));
@@ -89,7 +89,7 @@ public class SamNotifier {
     public SesClient sesClient() {
         SesClientBuilder builder = SesClient.builder()
                 .region(Region.of(region))
-                .credentialsProvider(DefaultCredentialsProvider.create());
+                .credentialsProvider(DefaultCredentialsProvider.builder().build());
 
         if (awsEndpoint != null && !awsEndpoint.isEmpty()) {
             builder.endpointOverride(java.net.URI.create(awsEndpoint));
@@ -124,15 +124,16 @@ public class SamNotifier {
                             apiResponse.getEmbedded().getResults().removeIf(r -> alreadyProcessedIds.contains(r.getId()));
                             // log.info("Results after cleanup {}", apiResponse.getEmbedded().getResults().size());
                             if(!apiResponse.getEmbedded().getResults().isEmpty()) {
-                                var subjectLine = 
-                                    String.format("Your SAM.gov query %s has new results", 
-                                        Optional.ofNullable(userQuery.getQueryDescription()).orElse(SamUtils.describeUrl(preparedUrl))
-                                );
-                                sendEmail(sesClient, senderEmailAddress, userQuery.getEmail(), subjectLine, 
-                                    null, SamUtils.generateSummary(apiResponse, client, objectMapper));
                                 var opportunityIds = apiResponse.getEmbedded().getResults().stream().map(Result::getId).collect(Collectors.toList());
                                 userQuery.addProcessedOpportunities(opportunityIds);
-                                table.updateItem(userQuery);
+                                table.updateItem(userQuery);  // Persist first to prevent duplicates if send fails/retries
+
+                                var subjectLine =
+                                    String.format("Your SAM.gov query %s has new results",
+                                        Optional.ofNullable(userQuery.getQueryDescription()).orElse(SamUtils.describeUrl(preparedUrl))
+                                );
+                                sendEmail(sesClient, senderEmailAddress, userQuery.getEmail(), subjectLine,
+                                    null, SamUtils.generateSummary(apiResponse, client, objectMapper));
                             }
                         }
                     } catch (Exception e) {

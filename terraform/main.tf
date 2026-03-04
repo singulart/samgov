@@ -1,6 +1,6 @@
 locals {
   schedule_expression = "rate(30 minutes)"
-  function_version    = "0.4.2-SNAPSHOT"
+  function_version    = "0.4.4-SNAPSHOT"
 }
 
 data "aws_caller_identity" "current" {}
@@ -94,6 +94,8 @@ resource "aws_lambda_function" "samgov_notifier" {
       SPRING_PROFILES_ACTIVE = "prod"
       SES_SENDER             = "noreply@argorand.io"
       RANDOM_VAR             = "42873498237987"
+      LOGGING_LEVEL_SOFTWARE_AMAZON_AWSSDK = "DEBUG"
+      AWS_DEFAULTS_MODE      = "standard"
     }
   }
 }
